@@ -4,7 +4,6 @@ import logging
 
 from collections import OrderedDict
 
-from processing.tools import postgis
 from qgis.core import (
     Qgis,
     QgsDataSourceUri,
@@ -13,6 +12,7 @@ from qgis.core import (
     QgsProcessingException,
     QgsProcessingOutputMultipleLayers,
     QgsProcessingParameterString,
+    QgsProviderRegistry,
     QgsVectorLayer,
     QgsWkbTypes,
 )
@@ -102,7 +102,7 @@ class LoadPostgisTables(QgsProcessingAlgorithm):
         )
 
     def processAlgorithm(self, parameters, context, feedback):
-        destination = self.parameterAsFile(parameters, self.DATABASE, context)
+        """ destination = self.parameterAsFile(parameters, self.DATABASE, context)
 
         try:
             db = postgis.GeoDB.from_name(destination)
@@ -111,7 +111,23 @@ class LoadPostgisTables(QgsProcessingAlgorithm):
             raise QgsProcessingException(
                 tr('* ERROR while getting database "{}"').format(destination))
 
-        database_uri = db.uri
+        database_uri = db.uri """
+        connection_name = self.parameterAsString(
+            parameters, self.DATABASE, context
+        )
+        schema = self.parameterAsString(
+            parameters, self.SCHEMA, context
+        )
+
+        metadata = QgsProviderRegistry.instance().providerMetadata('postgres')
+        connections = metadata.connections()
+
+        if connection_name not in connections:
+            raise QgsProcessingException(
+                tr('* ERROR while getting database "{}"').format(connection_name)
+            )
+
+        database_uri = QgsDataSourceUri(connections[connection_name].uri())
         output_layers = []
         for table, geom in MAPPING.items():
             uri = QgsDataSourceUri(database_uri)

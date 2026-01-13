@@ -6,7 +6,6 @@ from collections import OrderedDict
 
 import psycopg2
 
-from processing.tools import postgis
 from qgis.core import (
     Qgis,
     QgsDataSourceUri,
@@ -17,6 +16,7 @@ from qgis.core import (
     QgsProcessingParameterCrs,
     QgsProcessingParameterFileDestination,
     QgsProcessingParameterString,
+    QgsProviderRegistry,
     QgsVectorLayer,
     QgsVectorLayerExporter,
     QgsWkbTypes,
@@ -76,20 +76,45 @@ class CreateDataModelAlgorithm(QgsProcessingAlgorithm):
             context
         )
 
-        try:
+        """ try:
             db = postgis.GeoDB.from_name(destination)
             is_geopackage = False
             schema = self.parameterAsFile(parameters, self.SCHEMA, context)
         except QgsProcessingException:
             is_geopackage = True
-            schema = None
+            schema = None """
+
+        # Detect PostGIS vs GeoPackage
+        is_geopackage = False
+        schema = None
+
+        try:
+            # PostGIS connection name
+            connection_name = self.parameterAsString(
+                parameters, self.DESTINATION, context
+            )
+
+            metadata = QgsProviderRegistry.instance().providerMetadata('postgres')
+            connections = metadata.connections()
+
+            if connection_name not in connections:
+                raise QgsProcessingException(
+                    tr('PostGIS connection "{}" not found').format(connection_name)
+                )
+
+            database_uri = QgsDataSourceUri(connections[connection_name].uri())
+            schema = self.parameterAsString(parameters, self.SCHEMA, context)
+
+        except Exception:
+            # Fallback: GeoPackage
+            is_geopackage = True
 
         if is_geopackage:
             if not destination.lower().endswith('.gpkg'):
                 destination += '.gpkg'
             uri = destination
         else:
-            database_uri = db.uri
+            # database_uri = db.uri
             info = database_uri.connectionInfo(True)
             conn = psycopg2.connect(info)
             cur = conn.cursor()
